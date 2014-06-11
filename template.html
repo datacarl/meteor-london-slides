@@ -26,14 +26,13 @@ URL: https://code.google.com/p/io-2012-slides
 
 <slides class="layout-widescreen">
 
-  <slide class="logoslide nobackground">
+  <slide class="nobackground">
     <article class="flexbox vcenter">
-      <span><img src="images/google_developers_logo.png"></span>
+      <span><img src="images/lookback-logo-200x200.png"></span>
     </article>
   </slide>
 
   <slide class="title-slide segue nobackground">
-    <aside class="gdbar"><img src="images/google_developers_icon_128.png"></aside>
     <!-- The content of this hgroup is replaced programmatically through the slide_config.json. -->
     <hgroup class="auto-fadein">
       <h1 data-config-title><!-- populated from slide_config.json --></h1>
@@ -44,19 +43,420 @@ URL: https://code.google.com/p/io-2012-slides
 
   <slide>
     <hgroup>
-      <h2>Slide with Bullets</h2>
+      <h2>The naive approach</h2>
     </hgroup>
     <article>
-      <ul>
-        <li>Titles are formatted as Open Sans with bold applied and font size is set at 45</li>
-        <li>Title capitalization is title case
-          <ul>
-            <li>Subtitle capitalization is title case</li>
-          </ul>
-        </li>
-        <li>Subtitle capitalization is title case</li>
-        <li>Titles and subtitles should never have a period at the end</li>
-      </ul>
+      <pre class="prettyprint">
+// Define a new collection on both the client and the server.
+Experiences = new Meteor.Collection('experiences');
+
+if (Meteor.isServer) {
+  Meteor.publish('experiences', function() {
+    return Experiences.find();
+  });
+}
+
+if (Meteor.isClient) {
+  Meteor.subscribe('experiences');
+}
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>table>tbody>tr>td</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="listView">
+  {{#each experiences}}
+    &lt;tr>
+      &lt;td>{{name}}&lt;/td>
+      &lt;td>{{createdAt}}&lt;/td>
+      &lt;td>{{user}}&lt;/td>
+    &lt;/tr>
+  {{/each}}
+&lt;/template>
+      </pre>
+      <span class="build">
+        <pre class="prettyprint">
+  Template.listView.helpers({
+    experiences: function() {
+      return Experiences.find();
+    }
+  });
+        </pre>
+      </span>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Filters</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="filters">
+  Users
+  &lt;ul>
+    {{#each users}}
+      &lt;li>{{this}}&lt;/li>
+    {{/each}}
+  &lt;/ul>
+&lt;/template>
+      </pre>
+
+      <pre class="prettyprint">
+Template.filters.helpers({
+  users: function() {
+    var experiences = Experiences.find().fetch();
+    var users = _.pluck(experiences, 'user');
+
+    return _.uniq(users);
+  }
+});
+      </pre>
+    </article>
+  </slide>
+  <slide>
+
+    <hgroup>
+      <h2>Save the filter</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Template.filters.events({
+  'click li': function(e, tmpl) {
+    var clickedUser = this;
+    var selectedUser = Session.get('selectedUser');
+    var newSelectedUser;
+
+    if (newSelectedUser == clickedUser)
+      newSelectedUser = ''; // Deselect
+    else
+      newSelectedUser = clickedUser; // Select new
+
+    Session.set('selectedUser', newSelectedUser);
+  }
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Query should reflect filter</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Template.listView.helpers({
+  experiences: function() {
+    var user = Session.get('selectedUser');
+    var query = {};
+
+    if (user)
+      query.user = user;
+
+    return Experiences.find(query);
+  }
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Subscribe with limit</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+// Client
+Deps.autorun(function() {
+  var limit = Session.get('limit');
+  Meteor.subscribe('experiences', limit);
+});
+      </pre>
+      <pre class="prettyprint">
+//Server
+Meteor.publish('experiences', function(limit) {
+  check(limit, Number);
+
+  return Experiences.find({}, {limit: limit});
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Let's load some more</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="loadMore">
+  &lt;button id="load-more">load more&lt;/button>
+&lt;/template>
+      </pre>
+      <pre class="prettyprint">
+Template.loadMore.events({
+  'click #load-more': function() {
+    var limit = Session.get('limit');
+    var newLimit += 20;
+    Session.set('limit', newLimit);
+  }
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Don't trick the user</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="loadMore">
+  {{#if hasMore}}
+    &lt;button id="load-more">load more&lt;/button>
+  {{/if}}
+&lt;/template>
+      </pre>
+      <pre class="prettyprint">
+Template.loadMore.helpers({
+  hasMore: function() {
+   <b>return Session.get('limit') == Experiences.find().count();</b>
+  }
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>More feedback plz</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+var previousLimit;
+Deps.autorun(function() {
+  var limit = Session.get('limit');
+
+  if (limit != previousLimit) {
+    Session.set('loadingMore', true);
+    previousLimit = limit;
+  }
+
+  Meteor.subscribe('experiences', limit, function() {
+    // Called every time the subscription has been updated and all new docs have arrived.
+    Session.set('loadingMore', false);
+  });
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Loading...</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="loadMore">
+  {{#if showLoadMore}}
+    &lt;button id="load-more">load more&lt;/button>
+  {{/if}}
+  {{#if showLoadingMore}}
+    &lt;span>loading more...&lt;/span>
+  {{/if}}
+&lt;/template>
+      </pre>
+      <pre class="prettyprint">
+Template.loadMore.helpers({
+  showLoadMore: function() {
+    return Session.get('limit') == Experiences.find().count()
+            && Session.equals('loadingMore', false);
+  },
+  showLoadingMore: function() { return Session.get('loadingMore') }
+});
+      </pre>
+    </article>
+  </slide>
+
+
+  <slide>
+    <hgroup>
+      <h2>Filters</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Filters = new Meteor.Collection('filters');
+      </pre>
+
+      <pre class="prettyprint">
+Filters.upsert({
+  type: 'users',
+  value: 'Joe',
+  count: {$inc : 1}
+});
+      </pre>
+
+      <pre class="prettyprint">
+{
+  type: 'users',
+  value: 'Joe',
+  count: 1
+}
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Pub sub filters</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+// Server
+Meteor.publish('filters', function() {
+  return Filters.find();
+});
+      </pre>
+      <pre class="prettyprint">
+// Client
+Meteor.subscribe('filters');
+      </pre>
+    </article>
+  </slide>
+  <slide>
+    <hgroup>
+      <h2>Display the template</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+&lt;template name="filters">
+  {{#each filterTypes}}
+    &lt;ul>
+      {{#each filtersForType}}
+        &lt;li>{{value}} - {{count}}&lt;/li>
+      {{/each}}
+    &lt;/ul>
+  {{/each}}
+&lt;/template>
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Display the filters</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Template.filters.helpers({
+  filterTypes: function() {
+    return [
+     'users',
+     'device'
+    ];
+  },
+
+  filtersForType: function() {
+    return Filters.find({type: this});
+  },
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Select filters</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Template.filters.events({
+  'click li': function() {
+    var filter = {
+      type: this.type,
+      value: this.value
+    }
+
+    Filters._collection.update(filter, {$set : {selected: true}})
+  }
+})
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Figure out the query</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint" style="font-size: 18px; line-height: 20px;">
+Template.listView.helpers({
+  experiences: function() {
+    var query = {}, users = [], devices = [];
+
+    Filters._collection.find({ selected: true, }).forEach(function(filter) {
+      var type = filter.type, value = filter.value;
+
+      if (type == 'user') {
+          users.push(value);
+      } else if (type == 'device') {
+        devices.push(value);
+      }
+
+      if (users.length)
+        query.user = {$in: users};
+      if (devices.length)
+        query.device = {$in: devices};
+    });
+
+    Session.set('query', query);
+    return Experiences.find(query);
+  }
+});
+      </pre>
+    </article>
+  </slide>
+  <slide>
+    <hgroup>
+      <h2>Subscribe to the query</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Deps.autorun(function() {
+  var limit = Session.get('limit'),
+      query = Session.get('query');
+  Meteor.subscribe('experiences', query, limit);
+});
+      </pre>
+    </article>
+  </slide>
+
+  <slide>
+    <hgroup>
+      <h2>Publish the data</h2>
+    </hgroup>
+    <article>
+      <pre class="prettyprint">
+Meteor.publish('experiences', function(query, limit) {
+  check(query, {
+    user: Match.Optional({
+      $in: Array,
+    }),
+    device: Match.Optional({
+      $in: Array,
+    }),
+  });
+
+  check(limit, Number);
+
+  return Experiences.find(query, {limit: limit});
+});
+      </pre>
     </article>
   </slide>
 
