@@ -22,7 +22,7 @@ var SLIDE_CONFIG = {
 
   // Author information
   presenters: [{
-    name: 'Carl Littke',
+    name: '@CarlLittke github.com/datacarl',
     company: 'Co-founder and web dev<br>Lookback',
     // gplus: 'http://plus.google.com/1234567890',
     twitter: '@CarlLittke',
